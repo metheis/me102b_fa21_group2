@@ -120,8 +120,8 @@ void setup()
   pinMode(led_red, OUTPUT);
   pinMode(fsensor, INPUT);
   pinMode(mdriver_1_dir, OUTPUT);
-  pinMode(mdriver_2_dir, OUTPUT);
-  pinMode(mdriver_3_dir, OUTPUT);
+  // pinMode(mdriver_2_dir, OUTPUT);
+  // pinMode(mdriver_3_dir, OUTPUT);
   digitalWrite(led_green, LOW); // sets the initial state of LED as turned-off
   digitalWrite(led_yellow, LOW);
   digitalWrite(led_red, LOW);
@@ -136,8 +136,8 @@ void setup()
 
   // attach the channel to the GPIO to be controlled
   ledcAttachPin(mdriver_1_pwm, ledChannel_1);
-  ledcAttachPin(mdriver_2_pwm, ledChannel_2);
-  ledcAttachPin(mdriver_3_pwm, ledChannel_3);
+  // ledcAttachPin(mdriver_2_pwm, ledChannel_2);
+  // ledcAttachPin(mdriver_3_pwm, ledChannel_3);
 
   // initilize timer
   timer0 = timerBegin(0, 80, true);             // timer 0, MWDT clock period = 12.5 ns * TIMGn_Tx_WDT_CLK_PRESCALE -> 12.5 ns * 80 -> 1000 ns = 1 us, countUp
@@ -392,8 +392,8 @@ void startDriveMotors()
   ledcWrite(ledChannel_1, drive_duty_cycle);
   digitalWrite(mdriver_1_dir, LOW);
   // right motor
-  ledcWrite(ledChannel_2, drive_duty_cycle);
-  digitalWrite(mdriver_2_dir, HIGH);
+  // ledcWrite(ledChannel_2, drive_duty_cycle);
+  // digitalWrite(mdriver_2_dir, HIGH);
 
   timerRestart(timer2);
   driving = true;
@@ -404,7 +404,7 @@ void stopDriveMotors()
   // left motor
   ledcWrite(ledChannel_1, LOW);
   // right motor
-  ledcWrite(ledChannel_2, LOW);
+  // ledcWrite(ledChannel_2, LOW);
 
   portENTER_CRITICAL(&timerMux2);
   drive_counter = false;
@@ -416,8 +416,8 @@ void stopDriveMotors()
 
 void startLinkageMotor()
 {
-  ledcWrite(ledChannel_3, linkage_duty_cycle);
-  digitalWrite(mdriver_3_dir, LOW); // low = up
+  // ledcWrite(ledChannel_3, linkage_duty_cycle);
+  // digitalWrite(mdriver_3_dir, LOW); // low = up
 
   timerRestart(timer2);
   emptying = true;
@@ -425,7 +425,7 @@ void startLinkageMotor()
 
 void stopLinkageMotor()
 {
-  ledcWrite(ledChannel_3, LOW);
+  // ledcWrite(ledChannel_3, LOW);
 
   portENTER_CRITICAL(&timerMux2);
   drive_counter = false;
