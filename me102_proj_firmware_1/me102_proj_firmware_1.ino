@@ -3,23 +3,23 @@
 #include <HCSR04.h> // https://github.com/Martinsos/arduino-lib-hc-sr04
 // Specify GPIO Mapping
 // led
-#define led_green A0
-#define led_yellow A1
-#define led_red A2
+#define led_green 26 // A0
+#define led_yellow 25 // A1
+#define led_red 21 // A21
 // hc_sr04
-#define hc_echo A3
-#define hc_trig A4
+#define hc_echo 36 // A4
+#define hc_trig 14 // A6
 // button
-#define button A5
+#define button 34 // A2
 // force_sensor
-#define fsensor A6
+#define fsensor 39 // A3
 // motors
-#define mdriver_1_in1 A8
-#define mdriver_1_in2 A7
-#define mdriver_2_in1 A12
-#define mdriver_2_in2 A11
-#define mdriver_2_in3 A10
-#define mdriver_2_in4 A9
+#define mdriver_1_dir 13 // A12
+#define mdriver_1_pwm 12 // A11
+#define mdriver_2_dir 13 // A12
+#define mdriver_2_pwm 12 // A11
+#define mdriver_3_dir 13 // A12
+#define mdriver_3_pwm 12 // A11
 // constants
 #define STATE_IDLE 0
 #define STATE_COLLECTING 1
@@ -33,9 +33,6 @@
 #define ledChannel_1 1
 #define ledChannel_2 2
 #define ledChannel_3 3
-#define ledChannel_4 4
-#define ledChannel_5 5
-#define ledChannel_6 6
 #define resolution 8
 #define MAX_PWM_VOLTAGE 255
 #define NOM_PWM_VOLTAGE 150
@@ -122,6 +119,9 @@ void setup()
   pinMode(led_yellow, OUTPUT);
   pinMode(led_red, OUTPUT);
   pinMode(fsensor, INPUT);
+  pinMode(mdriver_1_dir, OUTPUT);
+  pinMode(mdriver_2_dir, OUTPUT);
+  pinMode(mdriver_3_dir, OUTPUT);
   digitalWrite(led_green, LOW); // sets the initial state of LED as turned-off
   digitalWrite(led_yellow, LOW);
   digitalWrite(led_red, LOW);
@@ -133,17 +133,11 @@ void setup()
   ledcSetup(ledChannel_1, freq, resolution);
   ledcSetup(ledChannel_2, freq, resolution);
   ledcSetup(ledChannel_3, freq, resolution);
-  ledcSetup(ledChannel_4, freq, resolution);
-  ledcSetup(ledChannel_5, freq, resolution);
-  ledcSetup(ledChannel_6, freq, resolution);
 
   // attach the channel to the GPIO to be controlled
-  ledcAttachPin(mdriver_1_in1, ledChannel_1);
-  ledcAttachPin(mdriver_1_in2, ledChannel_2);
-  ledcAttachPin(mdriver_2_in1, ledChannel_3);
-  ledcAttachPin(mdriver_2_in2, ledChannel_4);
-  ledcAttachPin(mdriver_2_in3, ledChannel_5);
-  ledcAttachPin(mdriver_2_in4, ledChannel_6);
+  ledcAttachPin(mdriver_1_pwm, ledChannel_1);
+  ledcAttachPin(mdriver_2_pwm, ledChannel_2);
+  ledcAttachPin(mdriver_3_pwm, ledChannel_3);
 
   // initilize timer
   timer0 = timerBegin(0, 80, true);             // timer 0, MWDT clock period = 12.5 ns * TIMGn_Tx_WDT_CLK_PRESCALE -> 12.5 ns * 80 -> 1000 ns = 1 us, countUp
@@ -395,11 +389,11 @@ void setRedLEDflashing()
 void startDriveMotors()
 {
   // left motor
-  ledcWrite(ledChannel_1, LOW);
-  ledcWrite(ledChannel_2, drive_duty_cycle); // high = forward
+  ledcWrite(ledChannel_1, drive_duty_cycle);
+  digitalWrite(mdriver_1_dir, LOW);
   // right motor
-  ledcWrite(ledChannel_3, drive_duty_cycle); // high = forward
-  ledcWrite(ledChannel_4, LOW);
+  ledcWrite(ledChannel_2, drive_duty_cycle);
+  digitalWrite(mdriver_2_dir, HIGH);
 
   timerRestart(timer2);
   driving = true;
@@ -409,10 +403,8 @@ void stopDriveMotors()
 {
   // left motor
   ledcWrite(ledChannel_1, LOW);
-  ledcWrite(ledChannel_2, LOW);
   // right motor
-  ledcWrite(ledChannel_3, LOW);
-  ledcWrite(ledChannel_4, LOW);
+  ledcWrite(ledChannel_2, LOW);
 
   portENTER_CRITICAL(&timerMux2);
   drive_counter = false;
@@ -424,8 +416,8 @@ void stopDriveMotors()
 
 void startLinkageMotor()
 {
-  ledcWrite(ledChannel_5, LOW);
-  ledcWrite(ledChannel_6, linkage_duty_cycle); // high = up
+  ledcWrite(ledChannel_3, linkage_duty_cycle);
+  digitalWrite(mdriver_3_dir, LOW); // low = up
 
   timerRestart(timer2);
   emptying = true;
@@ -433,8 +425,7 @@ void startLinkageMotor()
 
 void stopLinkageMotor()
 {
-  ledcWrite(ledChannel_5, LOW);
-  ledcWrite(ledChannel_6, LOW);
+  ledcWrite(ledChannel_3, LOW);
 
   portENTER_CRITICAL(&timerMux2);
   drive_counter = false;
