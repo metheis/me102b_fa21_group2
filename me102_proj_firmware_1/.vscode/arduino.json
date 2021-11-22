@@ -1,0 +1,5 @@
+{
+    "configuration": "FlashFreq=80,UploadSpeed=921600,DebugLevel=none,PartitionScheme=default",
+    "board": "espressif:esp32:featheresp32",
+    "sketch": "me102_proj_firmware_1.ino"
+}
