@@ -4,34 +4,34 @@
 #include "TimerInterrupt.h"
 // Specify GPIO Mapping
 // led
-#define led_green A4  // A0
-#define led_yellow A5 // A1
-#define led_red A3    // A21
+#define led_green A5  
+#define led_yellow A4 
+#define led_red A3   
 // hc_sr04
-#define hc_echo A1 // A4
-#define hc_trig A0 // A6
+#define hc_echo A1 
+#define hc_trig A0 
 // button
-#define button 3 // A2
+#define button 3
 // force_sensor
 #define fsensor A2 // A3
 // motors
-#define mdriver_1_dir 13 // A12
-#define mdriver_1_pwm 11 // A11
+#define mdriver_1_dir 13 
+#define mdriver_1_pwm 11 
 #define mdriver_1_enc1 12
 #define mdriver_1_enc2 10
-#define mdriver_2_dir 8 // A12
-#define mdriver_2_pwm 9 // A11
+#define mdriver_2_dir 8 
+#define mdriver_2_pwm 9 
 #define mdriver_2_enc1 7
 #define mdriver_2_enc2 6
-#define mdriver_3_dir 4 // A12
-#define mdriver_3_pwm 5 // A11
+#define mdriver_3_dir 4 
+#define mdriver_3_pwm 5
 // constants
 #define STATE_IDLE 0
 #define STATE_COLLECTING 1
 #define STATE_FULL 2
 #define STATE_EMPTYING 3
 #define STATE_ERROR 4
-#define MIN_DISTANCE 20          // cm
+#define MIN_DISTANCE 5          // cm
 #define FORCE_SENSOR_THRESH 620 // 2V / 3.3V * 1023
 // PWM properties
 #define MAX_PWM_VOLTAGE 255
@@ -43,7 +43,7 @@
 #define TIMER2_INTERVAL_MS 100L
 #define SENSOR_INTERVAL_MS 20
 #define LOGIC_INTERVAL_US 1000
-#define LED_INTERVAL_MS 500
+#define LED_INTERVAL_MS 50
 #define MOTOR_ON_TIME_MS 5000
 
 Encoder encDriveLeft(mdriver_1_enc1, mdriver_1_enc2);
@@ -62,12 +62,18 @@ volatile float hc_distance;     // cm
 volatile bool drive_counter;
 bool driving;
 bool emptying;
-bool led_on;
+volatile bool led_on;
 long positionLeft;
 long positionRight;
 bool led_red_flashing;
 bool led_yellow_flashing;
 long drive_time;
+long led_time;
+long loop_time;
+volatile long current_time_US;
+volatile long current_time_MS;
+bool button_pressed_debounced;
+long button_timer;
 
 // Initialization
 
@@ -104,6 +110,12 @@ void setup()
   positionLeft = 0;
   positionRight = 0;
   drive_time = 0;
+  led_time = 0;
+  loop_time = 0;
+  current_time_US = 0;
+  current_time_MS = 0;
+  button_pressed_debounced = false;
+  button_timer = 0;
 
   // assign pins
   pinMode(button, INPUT);
@@ -121,12 +133,11 @@ void setup()
   pinMode(mdriver_1_enc2, INPUT);
   pinMode(mdriver_2_enc1, INPUT);
   pinMode(mdriver_2_enc2, INPUT);
-  // pinMode(mdriver_2_dir, OUTPUT);
-  // pinMode(mdriver_3_dir, OUTPUT);
-  digitalWrite(led_green, LOW); // sets the initial state of LED as turned-off
-  digitalWrite(led_yellow, LOW);
-  digitalWrite(led_red, LOW);
-  attachInterrupt(button, isr, RISING);
+  setYellowLED();
+  //digitalWrite(led_green, LOW); // sets the initial state of LED as turned-off
+  //digitalWrite(led_yellow, LOW);
+  //digitalWrite(led_red, LOW);
+  attachInterrupt(digitalPinToInterrupt(button), isr, RISING);
   encDriveLeft.write(0);
   encDriveRight.write(0);
 
@@ -158,11 +169,11 @@ void setup()
 
 void loop()
 {
-  if (micros() % LOGIC_INTERVAL_US == 0)
+  current_time_US = micros();
+  current_time_MS = millis();
+  if (current_time_US - loop_time >= LOGIC_INTERVAL_US)
   {
-    if (millis() % SENSOR_INTERVAL_MS == 0)
-    {
-      if (millis() % LED_INTERVAL_MS == 0)
+    if (current_time_MS - led_time >= LED_INTERVAL_MS)
       {
         if (led_yellow_flashing)
         {
@@ -190,7 +201,10 @@ void loop()
             led_on = true;
           }
         }
+        led_time = current_time_MS;
       }
+    if (current_time_MS % SENSOR_INTERVAL_MS == 0)
+    {
 
       refresh_sensors();
       switch (global_state)
@@ -210,13 +224,16 @@ void loop()
           global_state = STATE_COLLECTING;
           routine1();
         }
+        Serial.print("HC Distance: ");
+        Serial.println(hc_distance);
+        Serial.print("Force Sensor: ");
+        Serial.println(force_sensor_reading);
         break;
 
       case STATE_COLLECTING:
         Serial.println("STATE_COLLECTING");
         // LED should be green, linkage motor is off, drive motors on (preset routine)
-
-        if (hc_distance <= MIN_DISTANCE)
+        if (check_distance())
         {
           global_state = STATE_ERROR;
           routine2();
@@ -242,12 +259,6 @@ void loop()
         Serial.println("STATE_FULL");
         // LED should be red, all motors are turned off
 
-        if (hc_distance <= MIN_DISTANCE)
-        {
-          global_state = STATE_ERROR;
-          routine2();
-        }
-
         if (buttonPressEvent())
         {
           global_state = STATE_EMPTYING;
@@ -258,7 +269,7 @@ void loop()
       case STATE_EMPTYING:
         Serial.println("STATE_EMPTYING");
         // LED should be blinking yellow, linkage motor is on, drive motors off
-        if (hc_distance <= MIN_DISTANCE)
+        if (check_distance())
         {
           global_state = STATE_ERROR;
           routine2();
@@ -284,16 +295,23 @@ void loop()
     {
       poll_sensors();
     }
+    loop_time = current_time_US;
   }
 }
 
 // Event Checkers
 bool buttonPressEvent()
 {
-  if (buttonIsPressed == true)
+  if (button_pressed_debounced)
+  {
+    button_pressed_debounced = false;
+    return true;
+  }
+  if (buttonIsPressed)
   {
     buttonIsPressed = false;
-    return true;
+    button_timer = current_time_MS;
+    return false;
   }
   else
   {
@@ -303,6 +321,7 @@ bool buttonPressEvent()
 
 void poll_sensors()
 {
+  //Serial.println("Polling sensors");
   force_sensor_reading_acc = force_sensor_reading_acc + analogRead(fsensor);
   hc_distance_acc = hc_distance_acc + distanceSensor.measureDistanceCm();
 }
@@ -311,16 +330,31 @@ void refresh_sensors()
 {
   if (sensor_counter)
   {
+    Serial.println("Refreshing sensors");
     hc_distance = hc_distance_acc / SENSOR_INTERVAL_MS;
     hc_distance_acc = 0;
     force_sensor_reading = force_sensor_reading_acc / SENSOR_INTERVAL_MS;
     force_sensor_reading_acc = 0;
   }
+  hc_distance = distanceSensor.measureDistanceCm();
+  force_sensor_reading = analogRead(fsensor);
 }
 
 bool check_weight()
 {
-  if (force_sensor_reading > FORCE_SENSOR_THRESH)
+  if (force_sensor_reading < FORCE_SENSOR_THRESH)
+  {
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+bool check_distance()
+{
+  if (hc_distance < MIN_DISTANCE && hc_distance >= 0)
   {
     return true;
   }
@@ -335,6 +369,7 @@ bool check_weight()
 // Routines
 void routine1() // start collecting
 {
+  Serial.println("Running routine 1");
   setGreenLED();
   stopLinkageMotor();
   startDriveMotors();
@@ -342,6 +377,7 @@ void routine1() // start collecting
 
 void routine2() // error
 {
+  Serial.println("Running routine 2");
   setRedLEDflashing();
   stopDriveMotors();
   stopLinkageMotor();
@@ -349,6 +385,7 @@ void routine2() // error
 
 void routine3() // full
 {
+  Serial.println("Running routine 3");
   setRedLED();
   stopDriveMotors();
   stopLinkageMotor();
@@ -356,6 +393,7 @@ void routine3() // full
 
 void routine4() // idle
 {
+  Serial.println("Running routine 4");
   setYellowLED();
   stopDriveMotors();
   stopLinkageMotor();
@@ -363,6 +401,7 @@ void routine4() // idle
 
 void routine5() // emptying
 {
+  Serial.println("Running routine 5");
   setYellowLEDflashing();
   stopDriveMotors();
   startLinkageMotor();
@@ -373,8 +412,9 @@ void drive_routine()
 {
   if (driving)
   {
-    if (millis() - drive_time >= MOTOR_ON_TIME_MS)
+    if (current_time_MS - drive_time >= MOTOR_ON_TIME_MS)
     {
+      global_state = STATE_IDLE;
       routine4();
     }
   }
@@ -384,8 +424,9 @@ void empty_routine()
 {
   if (emptying)
   {
-    if (millis() - drive_time >= MOTOR_ON_TIME_MS)
+    if (current_time_MS - drive_time >= MOTOR_ON_TIME_MS)
     {
+      global_state = STATE_IDLE;
       routine4();
     }
   }
@@ -426,6 +467,7 @@ void setYellowLEDflashing()
   led_yellow_flashing = true;
   led_red_flashing = false;
   led_on = true;
+  led_time = current_time_MS;
 }
 
 void setRedLEDflashing()
@@ -436,6 +478,7 @@ void setRedLEDflashing()
   led_yellow_flashing = false;
   led_red_flashing = true;
   led_on = true;
+  led_time = current_time_MS;
 }
 
 void startDriveMotors()
@@ -448,7 +491,7 @@ void startDriveMotors()
   analogWrite(mdriver_2_pwm, MAX_PWM_VOLTAGE);
 
   driving = true;
-  drive_time = millis();
+  drive_time = current_time_MS;
 }
 
 void stopDriveMotors()
@@ -469,7 +512,7 @@ void startLinkageMotor()
   analogWrite(mdriver_3_pwm, NOM_PWM_VOLTAGE);
 
   emptying = true;
-  drive_time = millis();
+  drive_time = current_time_MS;
 }
 
 void stopLinkageMotor()
