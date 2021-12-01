@@ -60,8 +60,6 @@ volatile bool deltaT;           // check timer interrupt 2
 volatile float hc_distance_acc; // cm
 volatile float hc_distance;     // cm
 volatile bool drive_counter;
-int drive_duty_cycle;
-int linkage_duty_cycle;
 bool driving;
 bool emptying;
 bool led_on;
@@ -98,8 +96,6 @@ void setup()
   force_sensor_reading = 0;
   drive_counter = false;
   hc_distance = 0;
-  drive_duty_cycle = NOM_PWM_VOLTAGE / MAX_PWM_VOLTAGE * PWM_RANGE;
-  linkage_duty_cycle = LINKAGE_PWM_VOLTAGE / MAX_PWM_VOLTAGE * PWM_RANGE;
   driving = false;
   emptying = false;
   led_on = false;
@@ -135,16 +131,6 @@ void setup()
   encDriveRight.write(0);
 
   Serial.begin(115200);
-
-  // configure LED PWM functionalitites
-  ledcSetup(ledChannel_1, freq, resolution);
-  ledcSetup(ledChannel_2, freq, resolution);
-  ledcSetup(ledChannel_3, freq, resolution);
-
-  // attach the channel to the GPIO to be controlled
-  ledcAttachPin(mdriver_1_pwm, ledChannel_1);
-  ledcAttachPin(mdriver_2_pwm, ledChannel_2);
-  ledcAttachPin(mdriver_3_pwm, ledChannel_3);
 
   /*
   // initilize timers, ATmega328 used in UNO => 16MHz CPU clock
