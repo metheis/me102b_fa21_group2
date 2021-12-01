@@ -45,6 +45,7 @@
 #define LOGIC_INTERVAL_US 1000
 #define LED_INTERVAL_MS 50
 #define MOTOR_ON_TIME_MS 5000
+#define BUTTON_DEBOUNCE_TIMER 250
 
 Encoder encDriveLeft(mdriver_1_enc1, mdriver_1_enc2);
 Encoder encDriveRight(mdriver_2_enc1, mdriver_2_enc2);
@@ -72,7 +73,7 @@ long led_time;
 long loop_time;
 volatile long current_time_US;
 volatile long current_time_MS;
-bool button_pressed_debounced;
+bool button_timer_active;
 long button_timer;
 
 // Initialization
@@ -114,7 +115,7 @@ void setup()
   loop_time = 0;
   current_time_US = 0;
   current_time_MS = 0;
-  button_pressed_debounced = false;
+  button_timer_active = false;
   button_timer = 0;
 
   // assign pins
@@ -302,21 +303,22 @@ void loop()
 // Event Checkers
 bool buttonPressEvent()
 {
-  if (button_pressed_debounced)
+  if (button_timer_active)
   {
-    button_pressed_debounced = false;
-    return true;
+    if (current_time_MS - button_timer >= BUTTON_DEBOUNCE_TIMER)
+    {
+      buttonIsPressed = false;
+      button_timer_active = false;
+      return true;
+    }
+    return false;
   }
   if (buttonIsPressed)
   {
-    buttonIsPressed = false;
     button_timer = current_time_MS;
-    return false;
+    button_timer_active = true;
   }
-  else
-  {
-    return false;
-  }
+  return false;
 }
 
 void poll_sensors()
