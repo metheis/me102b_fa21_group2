@@ -11,17 +11,17 @@
 #define hc_echo A1
 #define hc_trig A0
 // button
-#define button 3
+#define button 7
 // force_sensor
 #define fsensor A2 // A3
 // motors
 #define mdriver_1_dir 13
 #define mdriver_1_pwm 11
-#define mdriver_1_enc1 12
+#define mdriver_1_enc1 3
 #define mdriver_1_enc2 10
 #define mdriver_2_dir 8
 #define mdriver_2_pwm 9
-#define mdriver_2_enc1 7
+#define mdriver_2_enc1 2
 #define mdriver_2_enc2 6
 #define mdriver_3_dir 4
 #define mdriver_3_pwm 5
@@ -59,8 +59,6 @@ int global_state;
 volatile bool buttonIsPressed;
 volatile float force_sensor_reading;
 volatile float force_sensor_reading_acc;
-volatile bool sensor_counter;   // check timer interrupt 1
-volatile bool deltaT;           // check timer interrupt 2
 volatile float hc_distance_acc; // cm
 volatile float hc_distance;     // cm
 volatile bool drive_counter;
@@ -85,31 +83,16 @@ int error_sum_left;
 
 // Initialization
 
-// void onTime1()
-// {
-//   // count = encoder.getCount();
-//   // encoder.clearCount();
-//   deltaT = true; // the function to be called when timer interrupt is triggered
-// }
-
-// void onTime2()
-// {
-//   drive_counter = true; // the function to be called when timer interrupt is triggered
-// }
-
-void isr()
-{ // the function to be called when interrupt is triggered
-  buttonIsPressed = true;
-}
-
 void setup()
 {
   // set global variable initial value
   global_state = 0;
   buttonIsPressed = false;
   force_sensor_reading = 0;
+  force_sensor_reading_acc = 0;
   drive_counter = false;
   hc_distance = 0;
+  hc_distance_acc = 0;
   driving = false;
   emptying = false;
   led_on = false;
@@ -145,38 +128,12 @@ void setup()
   pinMode(mdriver_1_enc2, INPUT);
   pinMode(mdriver_2_enc1, INPUT);
   pinMode(mdriver_2_enc2, INPUT);
+  pinMode(button, INPUT);
   setYellowLED();
-  //digitalWrite(led_green, LOW); // sets the initial state of LED as turned-off
-  //digitalWrite(led_yellow, LOW);
-  //digitalWrite(led_red, LOW);
-  attachInterrupt(digitalPinToInterrupt(button), isr, RISING);
   encDriveLeft.write(0);
   encDriveRight.write(0);
 
   Serial.begin(115200);
-
-  /*
-  // initilize timers, ATmega328 used in UNO => 16MHz CPU clock
-  // timer1
-  ITimer1.init();
-  if (ITimer1.attachInterruptInterval(TIMER1_INTERVAL_MS, onTime1))
-  {
-    Serial.print(F("Starting  ITimer1 OK, millis() = "));
-    Serial.println(millis());
-  }
-  else
-    Serial.println(F("Can't set ITimer1. Select another freq. or timer"));
-
-  // timer2
-  ITimer2.init();
-  if (ITimer2.attachInterruptInterval(TIMER2_INTERVAL_MS, onTime2))
-  {
-    Serial.print(F("Starting  ITimer2 OK, millis() = "));
-    Serial.println(millis());
-  }
-  else
-    Serial.println(F("Can't set ITimer2. Select another freq. or timer"));
-  */
 }
 
 void loop()
@@ -334,23 +291,24 @@ bool buttonPressEvent()
 
 void poll_sensors()
 {
-  //Serial.println("Polling sensors");
   force_sensor_reading_acc = force_sensor_reading_acc + analogRead(fsensor);
   hc_distance_acc = hc_distance_acc + distanceSensor.measureDistanceCm();
+  int buttonState = digitalRead(button);
+  if (buttonState == HIGH) {
+    buttonIsPressed = true;
+  }
 }
 
 void refresh_sensors()
 {
-  if (sensor_counter)
-  {
-    Serial.println("Refreshing sensors");
-    hc_distance = hc_distance_acc / SENSOR_INTERVAL_MS;
-    hc_distance_acc = 0;
-    force_sensor_reading = force_sensor_reading_acc / SENSOR_INTERVAL_MS;
-    force_sensor_reading_acc = 0;
-  }
-  hc_distance = distanceSensor.measureDistanceCm();
-  force_sensor_reading = analogRead(fsensor);
+
+  Serial.println("Refreshing sensors");
+  hc_distance = hc_distance_acc / SENSOR_INTERVAL_MS;
+  hc_distance_acc = 0;
+  force_sensor_reading = force_sensor_reading_acc / SENSOR_INTERVAL_MS;
+  force_sensor_reading_acc = 0;
+  // hc_distance = distanceSensor.measureDistanceCm();
+  // force_sensor_reading = analogRead(fsensor);
 }
 
 bool check_weight()
@@ -483,7 +441,6 @@ void drive_routine()
 
       analogWrite(mdriver_1_pwm, Dr);
       analogWrite(mdriver_2_pwm, Dl);
-
 
       drive_time2 = current_time_MS;
       encDriveLeft.write(0);
