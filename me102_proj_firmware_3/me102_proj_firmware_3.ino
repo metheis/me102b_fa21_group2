@@ -49,6 +49,19 @@
 #define MOTOR_ON_TIME_MS 5000
 #define BUTTON_DEBOUNCE_TIMER 500
 #define DRIVE_FEEDBACK_TIMER 100
+#define LINKAGE_PWM_0 150
+#define LINKAGE_TIME_1 200
+#define LINKAGE_PWM_1 120
+#define LINKAGE_TIME_2 400
+#define LINKAGE_PWM_2 50 // -1
+#define LINKAGE_TIME_3 500
+#define LINKAGE_PWM_3 0
+#define LINKAGE_TIME_4 4500 // going back
+#define LINKAGE_PWM_4 100 // -1
+#define LINKAGE_TIME_5 4600
+#define LINKAGE_PWM_5 50
+#define LINKAGE_TIME_6 4700
+#define LINKAGE_PWM_6 70
 
 Encoder encDriveLeft(mdriver_1_enc1, mdriver_1_enc2);
 Encoder encDriveRight(mdriver_2_enc1, mdriver_2_enc2);
@@ -294,19 +307,20 @@ void poll_sensors()
 void refresh_sensors()
 {
 
-//  Serial.println("Refreshing sensors");
-//  hc_distance = hc_distance_acc / SENSOR_INTERVAL_MS;
-//  Serial.println("distance: " + String(hc_distance_acc));
-//  Serial.println("distance_dv: " + String(hc_distance));
-//  hc_distance_acc = 0;
-//  force_sensor_reading = force_sensor_reading_acc / SENSOR_INTERVAL_MS;
-//  Serial.println("force: " + String(force_sensor_reading_acc));
-//  Serial.println("force_dv: " + String(force_sensor_reading));
-//  force_sensor_reading_acc = 0;
+  //  Serial.println("Refreshing sensors");
+  //  hc_distance = hc_distance_acc / SENSOR_INTERVAL_MS;
+  //  Serial.println("distance: " + String(hc_distance_acc));
+  //  Serial.println("distance_dv: " + String(hc_distance));
+  //  hc_distance_acc = 0;
+  //  force_sensor_reading = force_sensor_reading_acc / SENSOR_INTERVAL_MS;
+  //  Serial.println("force: " + String(force_sensor_reading_acc));
+  //  Serial.println("force_dv: " + String(force_sensor_reading));
+  //  force_sensor_reading_acc = 0;
   hc_distance = distanceSensor.measureDistanceCm();
   force_sensor_reading = analogRead(fsensor);
   int buttonState = digitalRead(button);
-  if (buttonState == HIGH) {
+  if (buttonState == HIGH)
+  {
     buttonIsPressed = true;
   }
 }
@@ -388,63 +402,65 @@ void drive_routine()
       global_state = STATE_IDLE;
       routine4();
     }
-
-    if (current_time_MS - drive_time2 >= DRIVE_FEEDBACK_TIMER)
+    else
     {
-      int omega_des_local = OMEGA_DES_DRIVE / 10;
-      int real_count_right = encDriveRight.read();
-      int real_count_left = encDriveLeft.read();
+      if (current_time_MS - drive_time2 >= DRIVE_FEEDBACK_TIMER)
+      {
+        int omega_des_local = OMEGA_DES_DRIVE / 10;
+        int real_count_right = encDriveRight.read();
+        int real_count_left = encDriveLeft.read();
 
-      int Kp = 20;
-      int Ki = 60;
-      int error_right = omega_des_local - real_count_right;
-      int error_left = omega_des_local - real_count_left;
-      int Dr = Kp * error_right + Ki * error_sum_right / 10;
-      int Dl = Kp * error_left + Ki * error_sum_left / 10;
-      error_sum_right += error_right;
-      error_sum_left += error_left;
-      //Ensure that the error doesn't get too high
-      if (error_sum_right > ERROR_MAX)
-      {
-        error_sum_right = ERROR_MAX;
-      }
-      else if (error_sum_right < -ERROR_MAX)
-      {
-        error_sum_right = -ERROR_MAX;
-      }
-      if (error_sum_left > ERROR_MAX)
-      {
-        error_sum_left = ERROR_MAX;
-      }
-      else if (error_sum_left < -ERROR_MAX)
-      {
-        error_sum_left = -ERROR_MAX;
-      }
+        int Kp = 20;
+        int Ki = 60;
+        int error_right = omega_des_local - real_count_right;
+        int error_left = omega_des_local - real_count_left;
+        int Dr = Kp * error_right + Ki * error_sum_right / 10;
+        int Dl = Kp * error_left + Ki * error_sum_left / 10;
+        error_sum_right += error_right;
+        error_sum_left += error_left;
+        //Ensure that the error doesn't get too high
+        if (error_sum_right > ERROR_MAX)
+        {
+          error_sum_right = ERROR_MAX;
+        }
+        else if (error_sum_right < -ERROR_MAX)
+        {
+          error_sum_right = -ERROR_MAX;
+        }
+        if (error_sum_left > ERROR_MAX)
+        {
+          error_sum_left = ERROR_MAX;
+        }
+        else if (error_sum_left < -ERROR_MAX)
+        {
+          error_sum_left = -ERROR_MAX;
+        }
 
-      //Ensure that you don't go past the maximum possible command
-      if (Dr > MAX_PWM_VOLTAGE)
-      {
-        Dr = MAX_PWM_VOLTAGE;
-      }
-      else if (Dr < -MAX_PWM_VOLTAGE)
-      {
-        Dr = -MAX_PWM_VOLTAGE;
-      }
-      if (Dl > MAX_PWM_VOLTAGE)
-      {
-        Dl = MAX_PWM_VOLTAGE;
-      }
-      else if (Dl < -MAX_PWM_VOLTAGE)
-      {
-        Dl = -MAX_PWM_VOLTAGE;
-      }
+        //Ensure that you don't go past the maximum possible command
+        if (Dr > MAX_PWM_VOLTAGE)
+        {
+          Dr = MAX_PWM_VOLTAGE;
+        }
+        else if (Dr < -MAX_PWM_VOLTAGE)
+        {
+          Dr = -MAX_PWM_VOLTAGE;
+        }
+        if (Dl > MAX_PWM_VOLTAGE)
+        {
+          Dl = MAX_PWM_VOLTAGE;
+        }
+        else if (Dl < -MAX_PWM_VOLTAGE)
+        {
+          Dl = -MAX_PWM_VOLTAGE;
+        }
 
-      analogWrite(mdriver_1_pwm, Dr);
-      analogWrite(mdriver_2_pwm, Dl);
+        analogWrite(mdriver_1_pwm, Dr);
+        analogWrite(mdriver_2_pwm, Dl);
 
-      drive_time2 = current_time_MS;
-      encDriveLeft.write(0);
-      encDriveRight.write(0);
+        drive_time2 = current_time_MS;
+        encDriveLeft.write(0);
+        encDriveRight.write(0);
+      }
     }
   }
   else
@@ -463,6 +479,43 @@ void empty_routine()
       global_state = STATE_IDLE;
       routine4();
     }
+    else
+    {
+      if (current_time_MS - drive_time2 >= LINKAGE_TIME_1)
+      { // up
+        //analogWrite(mdriver_3_dir, LOW);
+        analogWrite(mdriver_3_pwm, LINKAGE_PWM_1);
+      }
+      if (current_time_MS - drive_time2 >= LINKAGE_TIME_2)
+      { // down
+        //analogWrite(mdriver_3_dir, LOW);
+        analogWrite(mdriver_3_pwm, LINKAGE_PWM_2);
+      }
+      if (current_time_MS - drive_time2 >= LINKAGE_TIME_3)
+      { // 0
+        //analogWrite(mdriver_3_dir, LOW);
+        analogWrite(mdriver_3_pwm, LINKAGE_PWM_3);
+      }
+      if (current_time_MS - drive_time2 >= LINKAGE_TIME_4)
+      { // down
+        //analogWrite(mdriver_3_dir, LOW);
+        analogWrite(mdriver_3_pwm, LINKAGE_PWM_4);
+      }
+      if (current_time_MS - drive_time2 >= LINKAGE_TIME_5)
+      { // up
+        //analogWrite(mdriver_3_dir, LOW);
+        analogWrite(mdriver_3_pwm, LINKAGE_PWM_5);
+      }
+      if (current_time_MS - drive_time2 >= LINKAGE_TIME_6)
+      { // up
+        //analogWrite(mdriver_3_dir, LOW);
+        analogWrite(mdriver_3_pwm, LINKAGE_PWM_6);
+      }
+    }
+  }
+  else
+  {
+    analogWrite(mdriver_3_pwm, 0);
   }
 }
 
@@ -536,10 +589,10 @@ void startDriveMotors()
 void stopDriveMotors()
 {
   // left motor
-  analogWrite(mdriver_1_dir, LOW);
+  digitalWrite(mdriver_1_dir, LOW);
   analogWrite(mdriver_1_pwm, 0);
   // right motor
-  analogWrite(mdriver_2_dir, LOW);
+  digitalWrite(mdriver_2_dir, LOW);
   analogWrite(mdriver_2_pwm, 0);
 
   driving = false;
@@ -547,15 +600,17 @@ void stopDriveMotors()
 
 void startLinkageMotor()
 {
-  analogWrite(mdriver_3_dir, LOW);
-  analogWrite(mdriver_3_pwm, NOM_PWM_VOLTAGE);
+  digitalWrite(mdriver_3_dir, LOW);
+  analogWrite(mdriver_3_pwm, LINKAGE_PWM_1);
 
   emptying = true;
   drive_time = current_time_MS;
+  drive_time2 = current_time_MS;
 }
 
 void stopLinkageMotor()
 {
+  digitalWrite(mdriver_3_dir, LOW);
   analogWrite(mdriver_3_pwm, 0);
 
   emptying = false;
