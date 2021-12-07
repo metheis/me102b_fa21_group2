@@ -47,7 +47,7 @@
 #define LOGIC_INTERVAL_US 1000
 #define LED_INTERVAL_MS 50
 #define MOTOR_ON_TIME_MS 5000
-#define BUTTON_DEBOUNCE_TIMER 250
+#define BUTTON_DEBOUNCE_TIMER 500
 #define DRIVE_FEEDBACK_TIMER 100
 
 Encoder encDriveLeft(mdriver_1_enc1, mdriver_1_enc2);
@@ -260,10 +260,6 @@ void loop()
       }
       sensor_time = current_time_MS;
     }
-    else
-    {
-      poll_sensors();
-    }
     loop_time = current_time_US;
   }
 }
@@ -277,7 +273,6 @@ bool buttonPressEvent()
     {
       buttonIsPressed = false;
       button_timer_active = false;
-      return true;
     }
     return false;
   }
@@ -285,6 +280,7 @@ bool buttonPressEvent()
   {
     button_timer = current_time_MS;
     button_timer_active = true;
+    return true;
   }
   return false;
 }
@@ -293,22 +289,26 @@ void poll_sensors()
 {
   force_sensor_reading_acc = force_sensor_reading_acc + analogRead(fsensor);
   hc_distance_acc = hc_distance_acc + distanceSensor.measureDistanceCm();
-  int buttonState = digitalRead(button);
-  if (buttonState == HIGH) {
-    buttonIsPressed = true;
-  }
 }
 
 void refresh_sensors()
 {
 
-  Serial.println("Refreshing sensors");
-  hc_distance = hc_distance_acc / SENSOR_INTERVAL_MS;
-  hc_distance_acc = 0;
-  force_sensor_reading = force_sensor_reading_acc / SENSOR_INTERVAL_MS;
-  force_sensor_reading_acc = 0;
-  // hc_distance = distanceSensor.measureDistanceCm();
-  // force_sensor_reading = analogRead(fsensor);
+//  Serial.println("Refreshing sensors");
+//  hc_distance = hc_distance_acc / SENSOR_INTERVAL_MS;
+//  Serial.println("distance: " + String(hc_distance_acc));
+//  Serial.println("distance_dv: " + String(hc_distance));
+//  hc_distance_acc = 0;
+//  force_sensor_reading = force_sensor_reading_acc / SENSOR_INTERVAL_MS;
+//  Serial.println("force: " + String(force_sensor_reading_acc));
+//  Serial.println("force_dv: " + String(force_sensor_reading));
+//  force_sensor_reading_acc = 0;
+  hc_distance = distanceSensor.measureDistanceCm();
+  force_sensor_reading = analogRead(fsensor);
+  int buttonState = digitalRead(button);
+  if (buttonState == HIGH) {
+    buttonIsPressed = true;
+  }
 }
 
 bool check_weight()
@@ -446,6 +446,11 @@ void drive_routine()
       encDriveLeft.write(0);
       encDriveRight.write(0);
     }
+  }
+  else
+  {
+    analogWrite(mdriver_1_pwm, 0);
+    analogWrite(mdriver_2_pwm, 0);
   }
 }
 
