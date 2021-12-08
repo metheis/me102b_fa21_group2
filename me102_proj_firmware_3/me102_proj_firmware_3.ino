@@ -31,8 +31,8 @@
 #define STATE_FULL 2
 #define STATE_EMPTYING 3
 #define STATE_ERROR 4
-#define MIN_DISTANCE 5          // cm
-#define FORCE_SENSOR_THRESH 820 // 2V / 3.3V * 1023
+#define MIN_DISTANCE 25          // cm
+#define FORCE_SENSOR_THRESH 485 // 2V / 3.3V * 1023
 #define ERROR_MAX 30
 // PWM properties
 #define MAX_PWM_VOLTAGE 255
@@ -49,19 +49,25 @@
 #define MOTOR_ON_TIME_MS 5000
 #define BUTTON_DEBOUNCE_TIMER 500
 #define DRIVE_FEEDBACK_TIMER 100
-#define LINKAGE_PWM_0 230
-#define LINKAGE_TIME_1 300
-#define LINKAGE_PWM_1 120
-#define LINKAGE_TIME_2 400
-#define LINKAGE_PWM_2 50 // -1
+#define LINKAGE_PWM_0 250
+#define LINKAGE_TIME_1 325
+#define LINKAGE_PWM_1 125
+#define LINKAGE_TIME_2 440
+#define LINKAGE_PWM_2 80 // -1
+#define LINKAGE_TIME_21 460
+#define LINKAGE_PWM_21 85 // -1
 #define LINKAGE_TIME_3 500
 #define LINKAGE_PWM_3 0
-#define LINKAGE_TIME_4 4500 // going back
-#define LINKAGE_PWM_4 100 // -1
-#define LINKAGE_TIME_5 4600
-#define LINKAGE_PWM_5 50
-#define LINKAGE_TIME_6 4700
-#define LINKAGE_PWM_6 70
+#define LINKAGE_TIME_4 4000 // going back
+#define LINKAGE_PWM_4 120 // -1
+#define LINKAGE_TIME_5 4250
+#define LINKAGE_PWM_5 60
+#define LINKAGE_TIME_6 4400
+#define LINKAGE_PWM_6 50
+#define LINKAGE_TIME_61 4600
+#define LINKAGE_PWM_61 42
+#define LINKAGE_TIME_62 4850
+#define LINKAGE_PWM_62 30
 
 Encoder encDriveLeft(mdriver_1_enc1, mdriver_1_enc2);
 Encoder encDriveRight(mdriver_2_enc1, mdriver_2_enc2);
@@ -480,33 +486,48 @@ void empty_routine()
     {
       if (current_time_MS - drive_time2 >= LINKAGE_TIME_1)
       { // up
-        //analogWrite(mdriver_3_dir, HIGH);
+        digitalWrite(mdriver_3_dir, HIGH);
         analogWrite(mdriver_3_pwm, LINKAGE_PWM_1);
       }
       if (current_time_MS - drive_time2 >= LINKAGE_TIME_2)
       { // down
-        //analogWrite(mdriver_3_dir, LOW);
+        digitalWrite(mdriver_3_dir, LOW);
         analogWrite(mdriver_3_pwm, LINKAGE_PWM_2);
+      }
+      if (current_time_MS - drive_time2 >= LINKAGE_TIME_21)
+      { // down
+        digitalWrite(mdriver_3_dir, LOW);
+        analogWrite(mdriver_3_pwm, LINKAGE_PWM_21);
       }
       if (current_time_MS - drive_time2 >= LINKAGE_TIME_3)
       { // 0
-        //analogWrite(mdriver_3_dir, LOW);
+        digitalWrite(mdriver_3_dir, LOW);
         analogWrite(mdriver_3_pwm, LINKAGE_PWM_3);
       }
       if (current_time_MS - drive_time2 >= LINKAGE_TIME_4)
       { // down
-        //analogWrite(mdriver_3_dir, LOW);
+        digitalWrite(mdriver_3_dir, LOW);
         analogWrite(mdriver_3_pwm, LINKAGE_PWM_4);
       }
       if (current_time_MS - drive_time2 >= LINKAGE_TIME_5)
       { // up
-        //analogWrite(mdriver_3_dir, HIGH);
+        digitalWrite(mdriver_3_dir, HIGH);
         analogWrite(mdriver_3_pwm, LINKAGE_PWM_5);
       }
       if (current_time_MS - drive_time2 >= LINKAGE_TIME_6)
       { // up
-        //analogWrite(mdriver_3_dir, HIGH);
+        digitalWrite(mdriver_3_dir, HIGH);
         analogWrite(mdriver_3_pwm, LINKAGE_PWM_6);
+      }
+      if (current_time_MS - drive_time2 >= LINKAGE_TIME_61)
+      { // up
+        digitalWrite(mdriver_3_dir, HIGH);
+        analogWrite(mdriver_3_pwm, LINKAGE_PWM_61);
+      }
+      if (current_time_MS - drive_time2 >= LINKAGE_TIME_62)
+      { // up
+        digitalWrite(mdriver_3_dir, HIGH);
+        analogWrite(mdriver_3_pwm, LINKAGE_PWM_62);
       }
     }
   }
@@ -598,7 +619,7 @@ void stopDriveMotors()
 void startLinkageMotor()
 {
   digitalWrite(mdriver_3_dir, HIGH);
-  analogWrite(mdriver_3_pwm, LINKAGE_PWM_1);
+  analogWrite(mdriver_3_pwm, LINKAGE_PWM_0);
 
   emptying = true;
   drive_time = current_time_MS;
