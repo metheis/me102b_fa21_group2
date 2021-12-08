@@ -32,7 +32,7 @@
 #define STATE_EMPTYING 3
 #define STATE_ERROR 4
 #define MIN_DISTANCE 5          // cm
-#define FORCE_SENSOR_THRESH 620 // 2V / 3.3V * 1023
+#define FORCE_SENSOR_THRESH 820 // 2V / 3.3V * 1023
 #define ERROR_MAX 30
 // PWM properties
 #define MAX_PWM_VOLTAGE 255
@@ -49,8 +49,8 @@
 #define MOTOR_ON_TIME_MS 5000
 #define BUTTON_DEBOUNCE_TIMER 500
 #define DRIVE_FEEDBACK_TIMER 100
-#define LINKAGE_PWM_0 150
-#define LINKAGE_TIME_1 200
+#define LINKAGE_PWM_0 230
+#define LINKAGE_TIME_1 300
 #define LINKAGE_PWM_1 120
 #define LINKAGE_TIME_2 400
 #define LINKAGE_PWM_2 50 // -1
@@ -250,11 +250,6 @@ void loop()
       case STATE_EMPTYING:
         Serial.println("STATE_EMPTYING");
         // LED should be blinking yellow, linkage motor is on, drive motors off
-        if (check_distance())
-        {
-          global_state = STATE_ERROR;
-          routine2();
-        }
 
         empty_routine();
 
@@ -318,7 +313,9 @@ void refresh_sensors()
   //  force_sensor_reading_acc = 0;
   hc_distance = distanceSensor.measureDistanceCm();
   force_sensor_reading = analogRead(fsensor);
+  Serial.println("force: " + String(force_sensor_reading));
   int buttonState = digitalRead(button);
+  Serial.println("button: " + String(buttonState));
   if (buttonState == HIGH)
   {
     buttonIsPressed = true;
@@ -483,7 +480,7 @@ void empty_routine()
     {
       if (current_time_MS - drive_time2 >= LINKAGE_TIME_1)
       { // up
-        //analogWrite(mdriver_3_dir, LOW);
+        //analogWrite(mdriver_3_dir, HIGH);
         analogWrite(mdriver_3_pwm, LINKAGE_PWM_1);
       }
       if (current_time_MS - drive_time2 >= LINKAGE_TIME_2)
@@ -503,12 +500,12 @@ void empty_routine()
       }
       if (current_time_MS - drive_time2 >= LINKAGE_TIME_5)
       { // up
-        //analogWrite(mdriver_3_dir, LOW);
+        //analogWrite(mdriver_3_dir, HIGH);
         analogWrite(mdriver_3_pwm, LINKAGE_PWM_5);
       }
       if (current_time_MS - drive_time2 >= LINKAGE_TIME_6)
       { // up
-        //analogWrite(mdriver_3_dir, LOW);
+        //analogWrite(mdriver_3_dir, HIGH);
         analogWrite(mdriver_3_pwm, LINKAGE_PWM_6);
       }
     }
@@ -571,10 +568,10 @@ void setRedLEDflashing()
 void startDriveMotors()
 {
   // left motor
-  analogWrite(mdriver_1_dir, LOW);
+  digitalWrite(mdriver_1_dir, LOW);
   analogWrite(mdriver_1_pwm, 0);
   // right motor
-  analogWrite(mdriver_2_dir, LOW);
+  digitalWrite(mdriver_2_dir, HIGH);
   analogWrite(mdriver_2_pwm, 0);
 
   driving = true;
@@ -600,7 +597,7 @@ void stopDriveMotors()
 
 void startLinkageMotor()
 {
-  digitalWrite(mdriver_3_dir, LOW);
+  digitalWrite(mdriver_3_dir, HIGH);
   analogWrite(mdriver_3_pwm, LINKAGE_PWM_1);
 
   emptying = true;
