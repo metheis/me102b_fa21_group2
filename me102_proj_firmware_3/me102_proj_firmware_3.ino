@@ -31,13 +31,13 @@
 #define STATE_FULL 2
 #define STATE_EMPTYING 3
 #define STATE_ERROR 4
-#define MIN_DISTANCE 25          // cm
-#define FORCE_SENSOR_THRESH 485 // 2V / 3.3V * 1023
-#define ERROR_MAX 30
+#define MIN_DISTANCE 25         // cm
+#define FORCE_SENSOR_THRESH 375 // 2V / 3.3V * 1023
+#define ERROR_MAX 5
 // PWM properties
 #define MAX_PWM_VOLTAGE 255
 #define NOM_PWM_VOLTAGE 150
-#define OMEGA_DES_DRIVE 53
+#define OMEGA_DES_DRIVE 2000
 // Timers
 #define USE_TIMER_1 true
 #define USE_TIMER_2 true
@@ -46,7 +46,10 @@
 #define SENSOR_INTERVAL_MS 20
 #define LOGIC_INTERVAL_US 1000
 #define LED_INTERVAL_MS 50
-#define MOTOR_ON_TIME_MS 5000
+#define DRIVE_TIME_MS 2600
+#define SLOW_DOWN_INTERVAL_MS 100
+#define SLOW_DOWN_START_MS 1000
+#define LINKAGE_TIME_MS 5000
 #define BUTTON_DEBOUNCE_TIMER 500
 #define DRIVE_FEEDBACK_TIMER 100
 #define LINKAGE_PWM_0 250
@@ -57,9 +60,9 @@
 #define LINKAGE_TIME_21 460
 #define LINKAGE_PWM_21 85 // -1
 #define LINKAGE_TIME_3 500
-#define LINKAGE_PWM_3 0
+#define LINKAGE_PWM_3 2
 #define LINKAGE_TIME_4 4000 // going back
-#define LINKAGE_PWM_4 120 // -1
+#define LINKAGE_PWM_4 120   // -1
 #define LINKAGE_TIME_5 4250
 #define LINKAGE_PWM_5 60
 #define LINKAGE_TIME_6 4400
@@ -68,6 +71,7 @@
 #define LINKAGE_PWM_61 42
 #define LINKAGE_TIME_62 4850
 #define LINKAGE_PWM_62 30
+#define FULL_TIME_MS 3000
 
 Encoder encDriveLeft(mdriver_1_enc1, mdriver_1_enc2);
 Encoder encDriveRight(mdriver_2_enc1, mdriver_2_enc2);
@@ -99,6 +103,9 @@ long sensor_time;
 long drive_time2;
 int error_sum_right;
 int error_sum_left;
+long full_timer;
+long slow_down_time;
+int omega_des_local;
 
 // Initialization
 
@@ -130,6 +137,9 @@ void setup()
   drive_time2 = 0;
   error_sum_right = 0;
   error_sum_left = 0;
+  full_timer = 0;
+  slow_down_time = 0;
+  omega_des_local = OMEGA_DES_DRIVE;
 
   // assign pins
   pinMode(button, INPUT);
@@ -197,7 +207,7 @@ void loop()
       switch (global_state)
       {
       case STATE_IDLE:
-        Serial.println("STATE_IDLE");
+        //Serial.println("STATE_IDLE");
         // LED should be yellow, all motors are turned off
 
         if (check_weight())
@@ -211,14 +221,11 @@ void loop()
           global_state = STATE_COLLECTING;
           routine1();
         }
-        Serial.print("HC Distance: ");
-        Serial.println(hc_distance);
-        Serial.print("Force Sensor: ");
-        Serial.println(force_sensor_reading);
+        
         break;
 
       case STATE_COLLECTING:
-        Serial.println("STATE_COLLECTING");
+        //Serial.println("STATE_COLLECTING");
         // LED should be green, linkage motor is off, drive motors on (preset routine)
         if (check_distance())
         {
@@ -232,18 +239,12 @@ void loop()
           routine4();
         }
 
-        if (check_weight())
-        {
-          global_state = STATE_FULL;
-          routine3();
-        }
-
         drive_routine();
 
         break;
 
       case STATE_FULL:
-        Serial.println("STATE_FULL");
+        //Serial.println("STATE_FULL");
         // LED should be red, all motors are turned off
 
         if (buttonPressEvent())
@@ -254,7 +255,7 @@ void loop()
         break;
 
       case STATE_EMPTYING:
-        Serial.println("STATE_EMPTYING");
+        //Serial.println("STATE_EMPTYING");
         // LED should be blinking yellow, linkage motor is on, drive motors off
 
         empty_routine();
@@ -262,12 +263,12 @@ void loop()
         break;
 
       case STATE_ERROR:
-        Serial.println("STATE_ERROR");
+        //Serial.println("STATE_ERROR");
         // LED should be blinking red, all motors off
         break;
 
       default:
-        Serial.println("SM_ERROR");
+        //Serial.println("SM_ERROR");
         global_state = STATE_ERROR;
         routine2();
         break;
@@ -319,9 +320,7 @@ void refresh_sensors()
   //  force_sensor_reading_acc = 0;
   hc_distance = distanceSensor.measureDistanceCm();
   force_sensor_reading = analogRead(fsensor);
-  Serial.println("force: " + String(force_sensor_reading));
   int buttonState = digitalRead(button);
-  Serial.println("button: " + String(buttonState));
   if (buttonState == HIGH)
   {
     buttonIsPressed = true;
@@ -330,14 +329,14 @@ void refresh_sensors()
 
 bool check_weight()
 {
-  if (force_sensor_reading < FORCE_SENSOR_THRESH)
+  if (current_time_MS - full_timer >= FULL_TIME_MS)
   {
-    return true;
+    if (force_sensor_reading < FORCE_SENSOR_THRESH)
+    {
+      return true;
+    }
   }
-  else
-  {
-    return false;
-  }
+  return false;
 }
 
 bool check_distance()
@@ -400,25 +399,35 @@ void drive_routine()
 {
   if (driving)
   {
-    if (current_time_MS - drive_time >= MOTOR_ON_TIME_MS)
+    if (current_time_MS - drive_time >= DRIVE_TIME_MS)
     {
       global_state = STATE_IDLE;
       routine4();
     }
     else
     {
+      if (current_time_MS - drive_time >= SLOW_DOWN_START_MS && current_time_MS - slow_down_time >= SLOW_DOWN_INTERVAL_MS)
+      {
+        Serial.println("slowing down slowing down slowing down");
+        Serial.println("omega_des: " + String(omega_des_local));
+        omega_des_local -= 100;
+        slow_down_time = current_time_MS;
+      }
       if (current_time_MS - drive_time2 >= DRIVE_FEEDBACK_TIMER)
       {
-        int omega_des_local = OMEGA_DES_DRIVE / 10;
-        int real_count_right = encDriveRight.read();
-        int real_count_left = encDriveLeft.read();
 
-        int Kp = 20;
-        int Ki = 60;
+        int real_count_right = -encDriveRight.read();
+        int real_count_left = -encDriveLeft.read();
+
+        float Kp = 0.5;
+        float Ki = 0.6;
         int error_right = omega_des_local - real_count_right;
         int error_left = omega_des_local - real_count_left;
-        int Dr = Kp * error_right + Ki * error_sum_right / 10;
-        int Dl = Kp * error_left + Ki * error_sum_left / 10;
+        int Dr = Kp * error_right + Ki * error_sum_right;
+        Serial.println("Dr: " + String(Dr));
+        int Dl = Kp * error_left + Ki * error_sum_left;
+        Serial.println("Dl: " + String(Dl));
+        Serial.println("omega: " + String(real_count_right));
         error_sum_right += error_right;
         error_sum_left += error_left;
         //Ensure that the error doesn't get too high
@@ -477,10 +486,11 @@ void empty_routine()
 {
   if (emptying)
   {
-    if (current_time_MS - drive_time >= MOTOR_ON_TIME_MS)
+    if (current_time_MS - drive_time >= LINKAGE_TIME_MS)
     {
       global_state = STATE_IDLE;
       routine4();
+      full_timer = current_time_MS;
     }
     else
     {
@@ -501,7 +511,7 @@ void empty_routine()
       }
       if (current_time_MS - drive_time2 >= LINKAGE_TIME_3)
       { // 0
-        digitalWrite(mdriver_3_dir, LOW);
+        digitalWrite(mdriver_3_dir, HIGH);
         analogWrite(mdriver_3_pwm, LINKAGE_PWM_3);
       }
       if (current_time_MS - drive_time2 >= LINKAGE_TIME_4)
@@ -602,6 +612,8 @@ void startDriveMotors()
   encDriveRight.write(0);
   error_sum_right = 0;
   error_sum_left = 0;
+  omega_des_local = OMEGA_DES_DRIVE;
+  slow_down_time = current_time_MS;
 }
 
 void stopDriveMotors()
