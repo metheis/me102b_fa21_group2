@@ -31,13 +31,14 @@
 #define STATE_FULL 2
 #define STATE_EMPTYING 3
 #define STATE_ERROR 4
-#define MIN_DISTANCE 25         // cm
-#define FORCE_SENSOR_THRESH 375 // 2V / 3.3V * 1023
+#define MIN_DISTANCE 45         // cm
+#define FORCE_SENSOR_THRESH 570 // 2V / 3.3V * 1023
 #define ERROR_MAX 5
+#define DRIVE 1
 // PWM properties
 #define MAX_PWM_VOLTAGE 255
 #define NOM_PWM_VOLTAGE 150
-#define OMEGA_DES_DRIVE 2000
+#define OMEGA_DES_DRIVE 2200
 // Timers
 #define USE_TIMER_1 true
 #define USE_TIMER_2 true
@@ -52,26 +53,26 @@
 #define LINKAGE_TIME_MS 5000
 #define BUTTON_DEBOUNCE_TIMER 500
 #define DRIVE_FEEDBACK_TIMER 100
-#define LINKAGE_PWM_0 250
-#define LINKAGE_TIME_1 325
+#define LINKAGE_PWM_0 210
+#define LINKAGE_TIME_1 400
 #define LINKAGE_PWM_1 125
-#define LINKAGE_TIME_2 440
+#define LINKAGE_TIME_2 640
 #define LINKAGE_PWM_2 80 // -1
-#define LINKAGE_TIME_21 460
-#define LINKAGE_PWM_21 85 // -1
-#define LINKAGE_TIME_3 500
+#define LINKAGE_TIME_21 700
+#define LINKAGE_PWM_21 110 // -1
+#define LINKAGE_TIME_3 725
 #define LINKAGE_PWM_3 2
 #define LINKAGE_TIME_4 4000 // going back
 #define LINKAGE_PWM_4 120   // -1
-#define LINKAGE_TIME_5 4250
-#define LINKAGE_PWM_5 60
+#define LINKAGE_TIME_5 4300
+#define LINKAGE_PWM_5 70
 #define LINKAGE_TIME_6 4400
-#define LINKAGE_PWM_6 50
-#define LINKAGE_TIME_61 4600
-#define LINKAGE_PWM_61 42
+#define LINKAGE_PWM_6 70
+#define LINKAGE_TIME_61 4500
+#define LINKAGE_PWM_61 100
 #define LINKAGE_TIME_62 4850
 #define LINKAGE_PWM_62 30
-#define FULL_TIME_MS 3000
+#define FULL_TIME_MS 5000
 
 Encoder encDriveLeft(mdriver_1_enc1, mdriver_1_enc2);
 Encoder encDriveRight(mdriver_2_enc1, mdriver_2_enc2);
@@ -216,7 +217,7 @@ void loop()
           routine3();
         }
 
-        if (buttonPressEvent())
+        if (DRIVE && buttonPressEvent())
         {
           global_state = STATE_COLLECTING;
           routine1();
@@ -320,6 +321,7 @@ void refresh_sensors()
   //  force_sensor_reading_acc = 0;
   hc_distance = distanceSensor.measureDistanceCm();
   force_sensor_reading = analogRead(fsensor);
+  Serial.println("force_dv: " + String(force_sensor_reading));
   int buttonState = digitalRead(button);
   if (buttonState == HIGH)
   {
@@ -406,7 +408,7 @@ void drive_routine()
     }
     else
     {
-      if (current_time_MS - drive_time >= SLOW_DOWN_START_MS && current_time_MS - slow_down_time >= SLOW_DOWN_INTERVAL_MS)
+      if (current_time_MS - drive_time >= SLOW_DOWN_START_MS && current_time_MS - slow_down_time >= SLOW_DOWN_INTERVAL_MS && omega_des_local > 0)
       {
         Serial.println("slowing down slowing down slowing down");
         Serial.println("omega_des: " + String(omega_des_local));
