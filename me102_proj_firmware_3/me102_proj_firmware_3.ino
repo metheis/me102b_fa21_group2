@@ -44,7 +44,7 @@
 #define USE_TIMER_2 true
 #define TIMER1_INTERVAL_MS 50L
 #define TIMER2_INTERVAL_MS 100L
-#define SENSOR_INTERVAL_MS 20
+#define STATE_INTERVAL_MS 20
 #define LOGIC_INTERVAL_US 1000
 #define LED_INTERVAL_MS 50
 #define DRIVE_TIME_MS 2600
@@ -74,8 +74,10 @@
 #define LINKAGE_PWM_62 30
 #define FULL_TIME_MS 5000
 
+// encoder objects
 Encoder encDriveLeft(mdriver_1_enc1, mdriver_1_enc2);
 Encoder encDriveRight(mdriver_2_enc1, mdriver_2_enc2);
+// HC-SR04 distance sensor object
 UltraSonicDistanceSensor distanceSensor(hc_trig, hc_echo);
 
 // global variables
@@ -113,7 +115,7 @@ int omega_des_local;
 void setup()
 {
   // set global variable initial value
-  global_state = 0;
+  global_state = STATE_IDLE; // default state is IDLE
   buttonIsPressed = false;
   force_sensor_reading = 0;
   force_sensor_reading_acc = 0;
@@ -159,10 +161,15 @@ void setup()
   pinMode(mdriver_2_enc1, INPUT);
   pinMode(mdriver_2_enc2, INPUT);
   pinMode(button, INPUT);
+
+  // set the status LED to yellow
   setYellowLED();
+
+  // Zero encoder counters
   encDriveLeft.write(0);
   encDriveRight.write(0);
 
+  // start the serial connection
   Serial.begin(115200);
 }
 
@@ -171,9 +178,11 @@ void loop()
   current_time_US = micros();
   current_time_MS = millis();
   if (current_time_US - loop_time >= LOGIC_INTERVAL_US)
-  {
+  { // only run every LOGIC_INTERVAL_US (us)
+
+    // control flashing LEDs
     if (current_time_MS - led_time >= LED_INTERVAL_MS)
-    {
+    { // turn on and off every LED_INTERVAL_MS
       if (led_yellow_flashing)
       {
         if (led_on)
@@ -202,70 +211,68 @@ void loop()
       }
       led_time = current_time_MS;
     }
-    if (current_time_MS - sensor_time >= SENSOR_INTERVAL_MS)
-    {
-      refresh_sensors();
+
+    // control state machine
+    if (current_time_MS - sensor_time >= STATE_INTERVAL_MS)
+    {                    // every STATE_INTERVAL_MS
+      refresh_sensors(); // get latest sensor data
       switch (global_state)
       {
       case STATE_IDLE:
-        //Serial.println("STATE_IDLE");
         // LED should be yellow, all motors are turned off
 
         if (check_weight())
-        {
+        { // if there is a ball, go to state full
           global_state = STATE_FULL;
           routine3();
         }
 
         if (DRIVE && buttonPressEvent())
-        {
+        { // if the button has been pressed, start driving
           global_state = STATE_COLLECTING;
           routine1();
         }
-        
+
         break;
 
       case STATE_COLLECTING:
-        //Serial.println("STATE_COLLECTING");
         // LED should be green, linkage motor is off, drive motors on (preset routine)
         if (check_distance())
-        {
+        { // if there is an object in front of the robot, go to error
           global_state = STATE_ERROR;
           routine2();
         }
 
         if (buttonPressEvent())
-        {
+        { // if the button is pressed, go to idle
           global_state = STATE_IDLE;
           routine4();
         }
 
-        drive_routine();
+        drive_routine(); // driving
 
         break;
 
       case STATE_FULL:
-        //Serial.println("STATE_FULL");
         // LED should be red, all motors are turned off
 
         if (buttonPressEvent())
-        {
+        { // if the buttin is pressed, start emptying the front scooper
           global_state = STATE_EMPTYING;
           routine5();
         }
         break;
 
       case STATE_EMPTYING:
-        //Serial.println("STATE_EMPTYING");
         // LED should be blinking yellow, linkage motor is on, drive motors off
 
-        empty_routine();
+        empty_routine(); // emptying
 
         break;
 
       case STATE_ERROR:
-        //Serial.println("STATE_ERROR");
         // LED should be blinking red, all motors off
+        // only can leave this state with a system reboot
         break;
 
       default:
@@ -281,6 +288,8 @@ void loop()
 }
 
 // Event Checkers
+
+// check if the button has been pressed and debounce the signal
 bool buttonPressEvent()
 {
   if (button_timer_active)
@@ -301,27 +310,11 @@ bool buttonPressEvent()
   return false;
 }
 
-void poll_sensors()
-{
-  force_sensor_reading_acc = force_sensor_reading_acc + analogRead(fsensor);
-  hc_distance_acc = hc_distance_acc + distanceSensor.measureDistanceCm();
-}
-
+// update distance, force, and button sensor values
 void refresh_sensors()
 {
-
-  //  Serial.println("Refreshing sensors");
-  //  hc_distance = hc_distance_acc / SENSOR_INTERVAL_MS;
-  //  Serial.println("distance: " + String(hc_distance_acc));
-  //  Serial.println("distance_dv: " + String(hc_distance));
-  //  hc_distance_acc = 0;
-  //  force_sensor_reading = force_sensor_reading_acc / SENSOR_INTERVAL_MS;
-  //  Serial.println("force: " + String(force_sensor_reading_acc));
-  //  Serial.println("force_dv: " + String(force_sensor_reading));
-  //  force_sensor_reading_acc = 0;
   hc_distance = distanceSensor.measureDistanceCm();
   force_sensor_reading = analogRead(fsensor);
-  Serial.println("force_dv: " + String(force_sensor_reading));
   int buttonState = digitalRead(button);
   if (buttonState == HIGH)
   {
@@ -329,6 +322,7 @@ void refresh_sensors()
   }
 }
 
+// check if there is a ball in the front load bucket
 bool check_weight()
 {
   if (current_time_MS - full_timer >= FULL_TIME_MS)
@@ -341,6 +335,7 @@ bool check_weight()
   return false;
 }
 
+// check if front distance is too short
 bool check_distance()
 {
   if (hc_distance < MIN_DISTANCE && hc_distance >= 0)
@@ -356,7 +351,7 @@ bool check_distance()
 // Event Service Response
 
 // Routines
-void routine1() // start collecting
+void routine1() // start collecting state
 {
   Serial.println("Running routine 1");
   setGreenLED();
@@ -364,7 +359,7 @@ void routine1() // start collecting
   startDriveMotors();
 }
 
-void routine2() // error
+void routine2() // enter error state
 {
   Serial.println("Running routine 2");
   setRedLEDflashing();
@@ -372,7 +367,7 @@ void routine2() // error
   stopLinkageMotor();
 }
 
-void routine3() // full
+void routine3() // enter full state
 {
   Serial.println("Running routine 3");
   setRedLED();
@@ -380,7 +375,7 @@ void routine3() // full
   stopLinkageMotor();
 }
 
-void routine4() // idle
+void routine4() // enter idle state
 {
   Serial.println("Running routine 4");
   setYellowLED();
@@ -388,7 +383,7 @@ void routine4() // idle
   stopLinkageMotor();
 }
 
-void routine5() // emptying
+void routine5() // enter emptying state
 {
   Serial.println("Running routine 5");
   setYellowLEDflashing();
@@ -397,26 +392,28 @@ void routine5() // emptying
 }
 
 // Subroutines
+
+// control driving
 void drive_routine()
 {
   if (driving)
   {
     if (current_time_MS - drive_time >= DRIVE_TIME_MS)
-    {
+    { // after DRIVE_TIME_MS, stop driving and go to idle
       global_state = STATE_IDLE;
       routine4();
     }
     else
     {
       if (current_time_MS - drive_time >= SLOW_DOWN_START_MS && current_time_MS - slow_down_time >= SLOW_DOWN_INTERVAL_MS && omega_des_local > 0)
-      {
+      { // after SLOW_DOWN_START_MS milliseconds, start slowing down
         Serial.println("slowing down slowing down slowing down");
         Serial.println("omega_des: " + String(omega_des_local));
         omega_des_local -= 100;
         slow_down_time = current_time_MS;
       }
       if (current_time_MS - drive_time2 >= DRIVE_FEEDBACK_TIMER)
-      {
+      { // every DRIVE_FEEDBACK_TIMER (100 ms), perform PI control on drive motors
 
         int real_count_right = -encDriveRight.read();
         int real_count_left = -encDriveLeft.read();
@@ -489,13 +486,13 @@ void empty_routine()
   if (emptying)
   {
     if (current_time_MS - drive_time >= LINKAGE_TIME_MS)
-    {
+    { // after LINKAGE_TIME_MS, turn off the linkage motor, go to idle
       global_state = STATE_IDLE;
       routine4();
       full_timer = current_time_MS;
     }
     else
-    {
+    { // raise and then lower front scooper bucket
       if (current_time_MS - drive_time2 >= LINKAGE_TIME_1)
       { // up
         digitalWrite(mdriver_3_dir, HIGH);
@@ -512,7 +509,7 @@ void empty_routine()
         analogWrite(mdriver_3_pwm, LINKAGE_PWM_21);
       }
       if (current_time_MS - drive_time2 >= LINKAGE_TIME_3)
-      { // 0
+      { // up
         digitalWrite(mdriver_3_dir, HIGH);
         analogWrite(mdriver_3_pwm, LINKAGE_PWM_3);
       }
@@ -544,11 +541,12 @@ void empty_routine()
     }
   }
   else
-  {
+  { // make sure linkage motor is off after timer
     analogWrite(mdriver_3_pwm, 0);
   }
 }
 
+// turn on the green LED
 void setGreenLED()
 {
   digitalWrite(led_green, HIGH);
@@ -558,6 +556,7 @@ void setGreenLED()
   led_red_flashing = false;
 }
 
+// turn on the yellow LED
 void setYellowLED()
 {
   digitalWrite(led_green, LOW);
@@ -567,6 +566,7 @@ void setYellowLED()
   led_red_flashing = false;
 }
 
+// turn on the red LED
 void setRedLED()
 {
   digitalWrite(led_green, LOW);
@@ -576,6 +576,7 @@ void setRedLED()
   led_red_flashing = false;
 }
 
+// turn on the yellow LED, flashing
 void setYellowLEDflashing()
 {
   digitalWrite(led_green, LOW);
@@ -587,6 +588,7 @@ void setYellowLEDflashing()
   led_time = current_time_MS;
 }
 
+// turn on the red LED, flashing
 void setRedLEDflashing()
 {
   digitalWrite(led_green, LOW);
@@ -598,6 +600,7 @@ void setRedLEDflashing()
   led_time = current_time_MS;
 }
 
+// start driving
 void startDriveMotors()
 {
   // left motor
@@ -618,6 +621,7 @@ void startDriveMotors()
   slow_down_time = current_time_MS;
 }
 
+// stop driving
 void stopDriveMotors()
 {
   // left motor
@@ -630,6 +634,7 @@ void stopDriveMotors()
   driving = false;
 }
 
+// start raising front scooper bucket
 void startLinkageMotor()
 {
   digitalWrite(mdriver_3_dir, HIGH);
@@ -640,6 +645,7 @@ void startLinkageMotor()
   drive_time2 = current_time_MS;
 }
 
+// turn off the front scooper bucket
 void stopLinkageMotor()
 {
   digitalWrite(mdriver_3_dir, LOW);
